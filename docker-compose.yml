@@ -1,61 +1,24 @@
 version: '3.8'
 
 services:
-  # CrewAI Backend API Service
-  crewai_api:
+  # Streamlit Application - Direct CrewAI Integration (No API Layer)
+  streamlit:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: crewai_api_service
-    ports:
-      - "8000:8000"
-    environment:
-      # Qdrant Cloud Configuration
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-device_solutions}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-      
-      # OpenAI Configuration
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL_NAME=${OPENAI_MODEL_NAME:-gpt-4}
-      
-      # Voyage AI Configuration
-      - VOYAGE_API_KEY=${VOYAGE_API_KEY}
-      
-      # CrewAI Settings
-      - CREWAI_TELEMETRY_OPT_OUT=true
-    
-    volumes:
-      - .:/app
-      - /app/__pycache__
-    restart: unless-stopped
-    networks:
-      - device_support_network
-    command: python -m uvicorn crewai_api:app --host 0.0.0.0 --port 8000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # Streamlit Application Frontend
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: device_support_app
+    container_name: crewai-streamlit
     ports:
       - "8501:8501"
     environment:
-      # Qdrant Cloud Configuration
+      # Qdrant Configuration
       - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-device_solutions}
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-insinnoflux-seric}
       - QDRANT_API_KEY=${QDRANT_API_KEY}
       
       # OpenAI Configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL_NAME=${OPENAI_MODEL_NAME:-gpt-4}
+      - MODEL=${MODEL:-gpt-4}
+      - AGENT_TEMPERATURE=${AGENT_TEMPERATURE:-0.3}
       
       # Voyage AI Configuration
       - VOYAGE_API_KEY=${VOYAGE_API_KEY}
@@ -66,27 +29,21 @@ services:
       # Streamlit Settings
       - STREAMLIT_CLIENT_LOGGER_LEVEL=info
       - STREAMLIT_LOGGER_LEVEL=info
-      
-      # API Configuration
-      - CREWAI_API_URL=http://crewai_api:8000
     
     volumes:
       - .:/app
       - /app/__pycache__
-    depends_on:
-      crewai_api:
-        condition: service_started
     restart: unless-stopped
     networks:
-      - device_support_network
-    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+      - crewai-network
+    command: streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 40s
 
 networks:
-  device_support_network:
+  crewai-network:
     driver: bridge

@@ -2,6 +2,7 @@
 .git
 .gitignore
 .gitattributes
+.github/
 
 # Python
 __pycache__
@@ -9,9 +10,6 @@ __pycache__
 *$py.class
 *.so
 .Python
-venv/
-env/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -24,19 +22,27 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 .venv
 venv
 ENV
+env
+env.bak
+venv.bak
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.hypothesis/
 
 # IDE
 .vscode
@@ -46,13 +52,14 @@ htmlcov/
 *~
 .DS_Store
 
-# Environment
+# Environment - secrets should NEVER be in image
+.env
 .env.local
 .env.*.local
 
 # Docker
-Dockerfile*
-docker-compose*.yml
+Dockerfile.dev
+docker-compose*.override.yml
 .dockerignore
 
 # Documentation
@@ -62,9 +69,20 @@ docs/
 # Testing and diagnostic files
 test_*.py
 diagnose_*.py
+tests/
 
 # Logs
 *.log
+api.log
 
 # OS
 Thumbs.db
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Node (if applicable)
+node_modules/
+npm-debug.log
