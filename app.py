@@ -4,15 +4,283 @@ A modern chatbot UI for the CrewAI multiagent device support system
 """
 import streamlit as st
 import os
+import requests
 from dotenv import load_dotenv
-from crewai import Crew
-from agents import (
-    create_device_agent, create_symptom_agent, create_problem_solver_agent, 
-    create_rag_query_tool, SUPPORTED_DEVICES, DEVICE_DESCRIPTIONS
+
+# Disable CrewAI telemetry
+os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
+
+# Load environment
+load_dotenv()
+
+# API Configuration
+CREWAI_API_URL = os.getenv("CREWAI_API_URL", "http://localhost:8000")
+
+def call_crewai_api(user_message: str, conversation_history: list = []) -> dict:
+    """
+    Call the CrewAI API to process a device issue
+    
+    Args:
+        user_message: The user's message
+        conversation_history: Previous messages in the conversation
+        
+    Returns:
+        API response with the agent's response
+    """
+    try:
+        response = requests.post(
+            f"{CREWAI_API_URL}/process-issue",
+            json={
+                "user_message": user_message,
+                "conversation_history": conversation_history
+            },
+            timeout=120
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.ConnectionError:
+        return {
+            "success": False,
+            "response": "❌ Unable to connect to CrewAI API. Make sure the API service is running at " + CREWAI_API_URL
+        }
+    except requests.exceptions.Timeout:
+        return {
+            "success": False,
+            "response": "❌ CrewAI API request timed out. Please try again."
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "response": f"❌ Error communicating with API: {str(e)}"
+        }
+
+# Page config
+st.set_page_config(
+    page_title="Device Support Service",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
-from tasks import create_device_identification_task, create_symptom_gathering_task, create_problem_solver_task
-from rag_service import RAGService
-from config import config
+
+# Custom CSS
+st.markdown("""
+<style>
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    }
+    
+    .main-header {
+        text-align: center;
+        color: #1a3a52;
+        margin-bottom: 10px;
+        font-size: 2.8em;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+    }
+    
+    .main-subheader {
+        text-align: center;
+        color: #666;
+        margin-bottom: 40px;
+        font-size: 1.1em;
+        font-weight: 400;
+        line-height: 1.6;
+    }
+    
+    .divider {
+        height: 2px;
+        background: linear-gradient(to right, transparent, #1a3a52, transparent);
+        margin: 30px 0;
+    }
+    
+    .message-user {
+        background-color: #f0f5fb;
+        padding: 16px 18px;
+        border-radius: 6px;
+        margin: 12px 0;
+        border-left: 5px solid #1a3a52;
+        line-height: 1.5;
+    }
+    
+    .message-user b {
+        color: #1a3a52;
+        font-weight: 600;
+    }
+    
+    .message-agent {
+        background-color: #ffffff;
+        padding: 16px 18px;
+        border-radius: 6px;
+        margin: 12px 0;
+        border-left: 5px solid #0d7377;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        line-height: 1.6;
+    }
+    
+    .message-agent b {
+        color: #0d7377;
+        font-weight: 600;
+    }
+    
+    .sidebar-section {
+        padding: 18px;
+        margin: 16px 0;
+        border-radius: 6px;
+        background-color: #f8fafb;
+        border: 1px solid #e0e8f0;
+    }
+    
+    .sidebar-section h4 {
+        color: #1a3a52;
+        margin-top: 0;
+        margin-bottom: 12px;
+        font-size: 1.05em;
+        font-weight: 600;
+    }
+    
+    .input-section {
+        background-color: #ffffff;
+        padding: 24px;
+        border-radius: 8px;
+        border: 1px solid #e0e8f0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .card {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 24px;
+        margin: 16px 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-top: 4px solid #1a3a52;
+    }
+    
+    .card h3 {
+        color: #1a3a52;
+        margin-top: 0;
+        margin-bottom: 16px;
+        font-size: 1.3em;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+    st.markdown("### 🤖 Device Support")
+    st.markdown("""
+    Intelligent multiagent AI system for device troubleshooting and support.
+    """)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+    st.markdown("### ✨ Features")
+    st.markdown("""
+    • **Smart Device Detection** - Identifies your device type
+    • **Detailed Diagnosis** - Asks targeted questions
+    • **Step-by-Step Solutions** - Guides you through fixes
+    • **Knowledge Base** - Powered by extensive device database
+    """)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+    st.markdown("### ✓ System Status")
+    try:
+        api_response = requests.get(f"{CREWAI_API_URL}/health", timeout=2)
+        if api_response.status_code == 200:
+            st.success("✓ API Connected")
+        else:
+            st.warning("⚠ API Unavailable")
+    except:
+        st.warning(f"⚠ Cannot reach API at {CREWAI_API_URL}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Main header
+st.markdown("""
+<div style="text-align: center; margin-bottom: 40px; padding-top: 20px;">
+    <h1 class="main-header">🤖 Device Support Service</h1>
+    <p class="main-subheader">Intelligent AI-Powered Troubleshooting & Solutions</p>
+    <div class="divider"></div>
+</div>
+""", unsafe_allow_html=True)
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display chat messages
+st.markdown('<div class="card"><h3>💬 Conversation</h3></div>', unsafe_allow_html=True)
+
+# Display existing messages
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(
+            f'<div class="message-user"><b>👤 You:</b><br/>{message["content"]}</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f'<div class="message-agent"><b>🤖 Agent:</b><br/>{message["content"]}</div>',
+            unsafe_allow_html=True
+        )
+
+# Input section
+st.markdown('<div class="input-section">', unsafe_allow_html=True)
+if len(st.session_state.messages) == 0:
+    st.markdown("#### 📝 Describe Your Device Issue")
+    placeholder_text = "e.g., My laptop won't turn on, Router has no WiFi, Printer is offline..."
+else:
+    st.markdown("#### 📝 Your Response")
+    placeholder_text = "Type your response here..."
+
+col_input, col_button = st.columns([0.85, 0.15])
+
+with col_input:
+    user_input = st.text_input(
+        "Message",
+        placeholder=placeholder_text,
+        label_visibility="collapsed",
+        key="user_input"
+    )
+
+with col_button:
+    send_button = st.button("🚀 Send", use_container_width=True)
+
+if send_button and user_input:
+    # Add user message to history
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
+    
+    # Get conversation history (user messages only to pass to API)
+    conversation_history = [msg for msg in st.session_state.messages if msg["role"] == "user"]
+    
+    # Call API
+    with st.spinner("🔄 Analyzing..."):
+        response = call_crewai_api(user_input, conversation_history)
+    
+    # Add agent response to history
+    st.session_state.messages.append({
+        "role": "agent",
+        "content": response.get("response", "Error processing request")
+    })
+    
+    # Rerun to display new messages
+    st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Clear history button
+if len(st.session_state.messages) > 0:
+    st.divider()
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("🔄 Clear History", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
+
 
 # Disable CrewAI telemetry to avoid signal handler warnings in Streamlit
 os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"

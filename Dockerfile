@@ -35,12 +35,8 @@ ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     CREWAI_TELEMETRY_OPT_OUT=true
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+# Expose ports for both services
+EXPOSE 8000 8501
 
-# Expose port for Streamlit
-EXPOSE 8501
-
-# Run Streamlit app
+# Default command (can be overridden in docker-compose)
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
